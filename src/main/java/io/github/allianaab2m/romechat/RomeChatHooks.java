@@ -13,7 +13,12 @@ public class RomeChatHooks {
     @SubscribeEvent
     public static void SendMessage(final ServerChatEvent event) {
         String msg = event.getRawText();
-        String convertedText = IMEConverter.Convert(YukiKanaConverter.conv(msg));
-        event.setMessage(Component.literal(convertedText + " (" + msg + ")"));
+        // もし`!`から始まるテキストだった場合は変換せずに送信
+        if (msg.startsWith("!")) {
+            event.setMessage(Component.literal(msg.replaceFirst("!", "")));
+        } else {
+            String convertedText = IMEConverter.Convert(YukiKanaConverter.conv(msg));
+            event.setMessage(Component.literal(convertedText + " (" + msg + ")"));
+        }
     }
 }
