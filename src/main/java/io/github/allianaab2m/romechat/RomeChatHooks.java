@@ -17,8 +17,13 @@ public class RomeChatHooks {
         if (msg.startsWith("!")) {
             event.setMessage(Component.literal(msg.replaceFirst("!", "")));
         } else {
-            String convertedText = IMEConverter.Convert(YukiKanaConverter.conv(msg));
-            event.setMessage(Component.literal(convertedText + " (" + msg + ")"));
+            if (msg.getBytes().length != msg.length()) {
+                // 全角文字が含まれるので変換しない
+                event.setMessage(Component.literal(msg));
+            } else {
+                String convertedText = IMEConverter.Convert(YukiKanaConverter.conv(msg));
+                event.setMessage(Component.literal(convertedText + " (" + msg + ")"));
+            }
         }
     }
 }
