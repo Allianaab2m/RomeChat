@@ -17,9 +17,9 @@ import net.minecraftforge.fml.common.Mod.EventBusSubscriber
 
 @EventBusSubscriber(modid = RomeChat.MOD_ID, bus = EventBusSubscriber.Bus.FORGE)
 object RomeChatHooks {
-    private fun toggleMode(mode: RomeChatMode): RomeChatMode {
+    private fun toggleMode(mode: RomeChatMode?): RomeChatMode {
         return when (mode) {
-            ON, BRACKET_OFF -> OFF
+            ON, BRACKET_OFF, null -> OFF
             OFF -> ON
         }
     }
@@ -29,16 +29,13 @@ object RomeChatHooks {
     fun sendMessage(event: ServerChatEvent) {
         var msg = event.rawText
         var mode = playerData[event.player.stringUUID]
-        if (mode == null) {
-            mode = ON
-        }
         // もし`!`から始まるテキストだった場合はモードを反転，!を除去
         if (msg.startsWith("!")) {
             msg = msg.replaceFirst("!".toRegex(), "")
             mode = toggleMode(mode)
         }
         when (mode) {
-            ON, BRACKET_OFF -> if (msg.toByteArray().size != msg.length) {
+            ON, BRACKET_OFF, null -> if (msg.toByteArray().size != msg.length) {
                 // 全角文字が含まれるので変換しない
                 event.message = Component.literal(msg)
             } else {
