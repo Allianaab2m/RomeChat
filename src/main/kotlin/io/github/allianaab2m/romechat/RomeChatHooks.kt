@@ -67,7 +67,7 @@ object RomeChatHooks {
                             ON -> BRACKET_OFF
                             BRACKET_OFF -> OFF
                             OFF -> ON
-                            null -> TODO()
+                            null -> ON
                         }
 
                         playerData[entity.stringUUID] = mode
