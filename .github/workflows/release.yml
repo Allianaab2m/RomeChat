@@ -20,7 +20,7 @@ jobs:
       - name: Build with Gradle
         run: ./gradlew build
       - name: Get version from tag
-        run: echo VERSION=$(echo "refs/tags/v1.0.1" | sed -e "s#refs/tags/v##g") >> $GITHUB_ENV
+        run: echo "VERSION=$(echo ${{github.ref}} | sed -e "s#refs/tags/v##g")" >> $GITHUB_ENV
       - name: Release
         uses: softprops/action-gh-release@v1
         if: startsWith(github.ref, 'refs/tags/')
