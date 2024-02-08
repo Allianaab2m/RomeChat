@@ -1,105 +1,58 @@
-package io.github.allianaab2m.romechat;
+package io.github.allianaab2m.romechat
 
-import com.mojang.brigadier.Command;
-import com.mojang.brigadier.builder.LiteralArgumentBuilder;
-import io.github.allianaab2m.romechat.japanize.IMEConverter;
-import io.github.allianaab2m.romechat.japanize.YukiKanaConverter;
-import net.minecraft.commands.CommandSourceStack;
-import net.minecraft.commands.Commands;
-import net.minecraft.network.chat.Component;
+import com.mojang.brigadier.Command
+import com.mojang.brigadier.builder.LiteralArgumentBuilder
+import com.mojang.brigadier.context.CommandContext
+import io.github.allianaab2m.romechat.RomeChatData.RomeChatMode.*
+import io.github.allianaab2m.romechat.japanize.IMEConverter.convIME
+import io.github.allianaab2m.romechat.japanize.YukiKanaConverter.convRomaji
+import net.minecraft.commands.CommandSourceStack
+import net.minecraft.commands.Commands
+import net.minecraft.network.chat.Component
+import net.minecraft.world.entity.player.Player
 
-import net.minecraft.world.entity.Entity;
-import net.minecraft.world.entity.player.Player;
-import net.minecraftforge.event.RegisterCommandsEvent;
-import net.minecraftforge.event.ServerChatEvent;
-import net.minecraftforge.event.entity.EntityJoinLevelEvent;
-import net.minecraftforge.eventbus.api.SubscribeEvent;
-import net.minecraftforge.fml.common.Mod;
+object RomeChatHooks {
+    fun editChatMessage(message: String, state: RomeChatData): Component {
+        var msg = message
+        var mode = state.mode
 
-import java.util.*;
-
-
-@Mod.EventBusSubscriber(modid = RomeChat.MOD_ID, bus = Mod.EventBusSubscriber.Bus.FORGE)
-public class RomeChatHooks {
-    private enum RomeChatMode {
-        ON,
-        BRACKET_OFF,
-        OFF,
-    }
-
-    private static RomeChatMode toggleMode(RomeChatMode mode) {
-        return switch (mode) {
-            case ON, BRACKET_OFF -> RomeChatMode.OFF;
-            case OFF -> RomeChatMode.ON;
-        };
-    }
-
-    static Map<String, RomeChatMode> playerData = new HashMap<>();
-    @SubscribeEvent
-    public static void SendMessage(final ServerChatEvent event) {
-        String msg = event.getRawText();
-        RomeChatMode mode = playerData.get(event.getPlayer().getStringUUID());
-        if (mode == null) {
-            mode = RomeChatMode.ON;
-        }
-        // もし`!`から始まるテキストだった場合はモードを反転，!を除去
         if (msg.startsWith("!")) {
-            msg = msg.replaceFirst("!", "");
-            mode = toggleMode(mode);
+            msg = msg.replaceFirst("!".toRegex(), "")
+            mode = mode.toggle()
         }
-        switch (mode) {
-            case ON, BRACKET_OFF:
-                if (msg.getBytes().length != msg.length()) {
-                    // 全角文字が含まれるので変換しない
-                    event.setMessage(Component.literal(msg));
+        return when (mode) {
+            ON, BRACKET_OFF ->
+                if (msg.toByteArray().size != msg.length) {
+                    Component.literal(msg) // 全角文字が含まれるので変換しない
                 } else {
-                    String convertedText = IMEConverter.Convert(YukiKanaConverter.conv(msg));
-                    if (mode == RomeChatMode.BRACKET_OFF) {
-                        event.setMessage(Component.literal(convertedText));
+                    val convertedText = msg.convRomaji().convIME()
+                    if (mode == BRACKET_OFF) {
+                        Component.literal(convertedText)
                     } else {
-                        event.setMessage(Component.literal(convertedText + " (" + msg + ")"));
+                        Component.literal("$convertedText ($msg)")
                     }
                 }
-                break;
-            case OFF:
-                event.setMessage(Component.literal(msg));
+
+            OFF -> Component.literal(msg)
         }
     }
-    @SubscribeEvent
-    public static void ToggleCommand(final RegisterCommandsEvent event) {
-        LiteralArgumentBuilder<CommandSourceStack> builder = Commands.literal("toggleRC")
-                .executes(context -> {
-                    Entity entity = context.getSource().getEntity();
-                    if (entity instanceof Player) {
-                        String playerUUID = entity.getStringUUID();
-                        RomeChatMode mode = playerData.get(playerUUID);
 
-                        // 切り替え
-                        mode = switch (mode) {
-                            case ON -> RomeChatMode.BRACKET_OFF;
-                            case BRACKET_OFF -> RomeChatMode.OFF;
-                            case OFF -> RomeChatMode.ON;
-                        };
+    fun toggleRCCommand(playerState: MutableMap<String, RomeChatData>): LiteralArgumentBuilder<CommandSourceStack>? {
+        return Commands.literal("toggleRC")
+            .executes { context: CommandContext<CommandSourceStack> ->
+                val entity = context.source.entity
+                if (entity is Player) {
+                    val state = playerState[entity.stringUUID] ?: RomeChatData(RomeChatData.RomeChatMode.ON)
+                    state.cycleMode() // 切り替え
 
-                        playerData.put(playerUUID, mode);
-
-                        String text = switch (mode) {
-                            case ON -> "[RomeChat]: オン";
-                            case BRACKET_OFF -> "[RomeChat]: 原文表示オフ";
-                            case OFF -> "[RomeChat]: オフ";
-                        };
-                        entity.sendSystemMessage(Component.literal(text));
+                    val text = when (state.mode) {
+                        ON -> "[RomeChat]: オン"
+                        BRACKET_OFF -> "[RomeChat]: 原文表示オフ"
+                        OFF -> "[RomeChat]: オフ"
                     }
-                    return Command.SINGLE_SUCCESS;
-                });
-        event.getDispatcher().register(builder);
-    }
-
-    @SubscribeEvent
-    public static void PlayerDataInit(final EntityJoinLevelEvent event) {
-        Entity entity = event.getEntity();
-        if (entity instanceof Player) {
-            playerData.put(entity.getStringUUID(), RomeChatMode.ON);
-        }
+                    entity.sendSystemMessage(Component.literal(text))
+                }
+                Command.SINGLE_SUCCESS
+            }
     }
 }
